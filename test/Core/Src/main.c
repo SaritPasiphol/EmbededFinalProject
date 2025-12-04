@@ -18,7 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include <stdio.h>  // For sprintf
+#include <string.h> // For strlen
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -40,23 +41,36 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+uint32_t inputCaptureVal1 = 0;
+uint32_t inputCaptureVal2 = 0;
+uint32_t difference = 0;
+uint8_t isFirstCaptured = 0;  // 0 = capturing first edge, 1 = capturing second
+uint32_t distance = 0;
 
+char msg[64]; // <--- Add this line (Buffer for UART message)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void delay_us (uint16_t us)
+{
+	__HAL_TIM_SET_COUNTER(&htim2,0);  // Reset the counter to 0
+	while (__HAL_TIM_GET_COUNTER(&htim2) < us);  // Wait until counter reaches the requested delay
+}
 /* USER CODE END 0 */
 
 /**
@@ -89,8 +103,9 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start(&htim2); // Start our microsecond ruler
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -99,9 +114,52 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+	  /* USER CODE BEGIN 3 */
+
+	      // 1. Reset TRIG pin low to ensure clean start
+	      HAL_GPIO_WritePin(TRIG_PIN_GPIO_Port, TRIG_PIN_Pin, GPIO_PIN_RESET);
+	      delay_us(3);
+
+	      // 2. Send the Pulse (10us High)
+	      HAL_GPIO_WritePin(TRIG_PIN_GPIO_Port, TRIG_PIN_Pin, GPIO_PIN_SET);
+	      delay_us(10);
+	      HAL_GPIO_WritePin(TRIG_PIN_GPIO_Port, TRIG_PIN_Pin, GPIO_PIN_RESET);
+
+	      // 3. Wait for the ECHO pin to go HIGH (Start of response)
+	      // Note: In a real product, add a timeout here so code doesn't hang if sensor is broken
+	      while (HAL_GPIO_ReadPin(ECHO_PIN_GPIO_Port, ECHO_PIN_Pin) == GPIO_PIN_RESET);
+
+	      // 4. Measure the time!
+	      // We set counter to 0 at the moment ECHO goes HIGH
+	      __HAL_TIM_SET_COUNTER(&htim2, 0);
+
+	      // 5. Wait for the ECHO pin to go LOW (End of response)
+	      while (HAL_GPIO_ReadPin(ECHO_PIN_GPIO_Port, ECHO_PIN_Pin) == GPIO_PIN_SET);
+
+	      // 6. Get the time passed
+	      difference = __HAL_TIM_GET_COUNTER(&htim2);
+
+	      // 7. Calculate Distance
+	      // Speed of sound is 343 m/s or 0.0343 cm/us.
+	      // Distance = (Time * Speed) / 2 (because sound goes there and back)
+	      distance = (difference * 0.0343) / 2;
+
+	      // Format the string. %lu is for unsigned long (uint32_t)
+		  // \r\n moves the cursor to the start of the next line
+		  sprintf(msg, "Distance: %lu cm\r\n", distance);
+
+		  // Send via UART2
+		  // &huart2 : The UART handler
+		  // (uint8_t*)msg : The data to send
+		  // strlen(msg) : The length of the data
+		  // 100 : Timeout in milliseconds
+		  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+
+		  // --- NEW CODE ENDS HERE ---
+
+		  HAL_Delay(500); // Increased delay to 500ms so the screen isn't flooded too fast
+		}
+	/* USER CODE END 3 */
 }
 
 /**
@@ -148,6 +206,51 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 83;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 4294967295;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
 }
 
 /**
@@ -202,7 +305,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin|TRIG_PIN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -210,12 +313,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : LD2_Pin TRIG_PIN_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin|TRIG_PIN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ECHO_PIN_Pin */
+  GPIO_InitStruct.Pin = ECHO_PIN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(ECHO_PIN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
