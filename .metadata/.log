@@ -16,3 +16,6 @@ Command-line arguments:  -os win32 -ws win32 -arch x86_64
 
 !ENTRY org.eclipse.cdt.core 1 0 2025-12-04 16:25:47.551
 !MESSAGE Indexed 'test' (20 sources, 82 headers) in 4.11 sec: 4,801 declarations; 22,954 references; 0 unresolved inclusions; 1 syntax errors; 2 unresolved names (0.0072%)
+
+!ENTRY org.eclipse.cdt.core 1 0 2025-12-04 19:22:46.589
+!MESSAGE Indexed 'Sound_detector' (20 sources, 82 headers) in 2.45 sec: 4,801 declarations; 22,954 references; 0 unresolved inclusions; 1 syntax errors; 2 unresolved names (0.0072%)
