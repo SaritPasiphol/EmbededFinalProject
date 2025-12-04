@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <stdio.h>  // For sprintf
-#include <string.h> // For strlen
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -114,7 +113,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-	  /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 
 	      // 1. Reset TRIG pin low to ensure clean start
 	      HAL_GPIO_WritePin(TRIG_PIN_GPIO_Port, TRIG_PIN_Pin, GPIO_PIN_RESET);
@@ -159,7 +158,7 @@ int main(void)
 
 		  HAL_Delay(500); // Increased delay to 500ms so the screen isn't flooded too fast
 		}
-	/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**
