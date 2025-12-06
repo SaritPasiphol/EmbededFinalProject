@@ -118,6 +118,7 @@ int main(void)
 	      if (HAL_ADC_PollForConversion(&hadc1, 1) == HAL_OK)
 	      {
 	          sample = HAL_ADC_GetValue(&hadc1);
+	          HAL_ADC_Stop(&hadc1);
 
 	          if (sample > signal_max) signal_max = sample;
 	          if (sample < signal_min) signal_min = sample;

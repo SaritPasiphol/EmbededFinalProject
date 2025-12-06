@@ -94,13 +94,46 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  char uart_buf[50];
+  uint32_t LIGHT_THRESHOLD = 100;
+  uint32_t SAMP_WIDTH = 50;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  uint32_t sample = 0;
+	  uint32_t start_time = HAL_GetTick();
+	  uint32_t signal_max = 0;
+
+	  //sampling for SAMP_WIDTH
+	  while ((HAL_GetTick() - start_time) < SAMP_WIDTH)
+	  {
+	      HAL_ADC_Start(&hadc1);
+	      if (HAL_ADC_PollForConversion(&hadc1, 1) == HAL_OK)
+	      {
+	          sample = HAL_ADC_GetValue(&hadc1);
+	          HAL_ADC_Stop(&hadc1);
+
+	          if (sample > signal_max) signal_max = sample;
+	      }
+	  }
+
+	  //light is off (> threshold)
+	  if (signal_max > LIGHT_THRESHOLD)
+	  {
+	      sprintf(uart_buf, "LIGHT: OFF | intensity: %lu\r\n", signal_max);
+	      HAL_UART_Transmit(&huart2, (uint8_t*)uart_buf, strlen(uart_buf), 100);
+	  }
+	  else
+	  {
+	      sprintf(uart_buf, "LIGHT: ON | intensity: %lu\r\n", signal_max);
+	      HAL_UART_Transmit(&huart2, (uint8_t*)uart_buf, strlen(uart_buf), 100);
+	  }
+
+	  // Short rest before next measurement
+	  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
