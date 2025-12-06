@@ -157,7 +157,7 @@ int main(void)
 		  // --- NEW CODE ENDS HERE ---
 
 		  HAL_Delay(500); // Increased delay to 500ms so the screen isn't flooded too fast
-		}
+  }
   /* USER CODE END 3 */
 }
 
