@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sensor Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Sensor Dashboard</h1>
+      <div class="status" id="status">Connecting to Firebase...</div>
+
+      <div class="sensor-grid">
+        <div class="sensor-card">
+          <div class="sensor-icon">📏</div>
+          <h2>Distance</h2>
+          <div class="sensor-value" id="distance">-- cm</div>
+        </div>
+
+        <div class="sensor-card">
+          <div class="sensor-icon">💡</div>
+          <h2>Light</h2>
+          <div class="sensor-value" id="light">-- lux</div>
+        </div>
+
+        <div class="sensor-card">
+          <div class="sensor-icon">🔊</div>
+          <h2>Sound</h2>
+          <div class="sensor-value" id="sound">-- dB</div>
+        </div>
+      </div>
+
+      <div class="last-update">
+        Last updated: <span id="lastUpdate">Never</span>
+      </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

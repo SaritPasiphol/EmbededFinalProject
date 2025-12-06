@@ -1,0 +1,19 @@
+{
+  "name": "sensor-dashboard",
+  "version": "1.0.0",
+  "description": "Sensor dashboard for Nucleo F411RE board",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server public -p 8080 -o"
+  },
+  "keywords": [
+    "sensors",
+    "firebase",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
