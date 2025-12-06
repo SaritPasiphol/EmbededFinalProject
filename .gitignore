@@ -1,1 +1,24 @@
 .metadata
+
+# STM32CubeIDE Ignore Rules
+
+# Compiled Object files
+*.o
+*.obj
+
+# Build Directories (Crucial to ignore these!)
+Debug/
+Release/
+build/
+
+# Binary Files
+*.elf
+*.bin
+*.hex
+*.map
+
+# Debugger settings
+*.launch
+
+# Auto-generated navigation files
+*.ipch
