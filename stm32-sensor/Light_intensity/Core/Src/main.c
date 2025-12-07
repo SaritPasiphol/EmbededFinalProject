@@ -123,12 +123,12 @@ int main(void)
 	  //light is off (> threshold)
 	  if (signal_max > LIGHT_THRESHOLD)
 	  {
-	      sprintf(uart_buf, "LIGHT: OFF | intensity: %lu\r\n", signal_max);
+	      sprintf(uart_buf, "intensity: %lu | OFF\r\n", signal_max);
 	      HAL_UART_Transmit(&huart2, (uint8_t*)uart_buf, strlen(uart_buf), 100);
 	  }
 	  else
 	  {
-	      sprintf(uart_buf, "LIGHT: ON | intensity: %lu\r\n", signal_max);
+	      sprintf(uart_buf, "intensity: %lu | ON\r\n", signal_max);
 	      HAL_UART_Transmit(&huart2, (uint8_t*)uart_buf, strlen(uart_buf), 100);
 	  }
 

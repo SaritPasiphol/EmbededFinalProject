@@ -84,14 +84,21 @@ osThreadId_t lightTaskHandle;
 const osThreadAttr_t lightTask_attributes = {
   .name = "lightTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 
 osThreadId_t soundTaskHandle;
 const osThreadAttr_t soundTask_attributes = {
   .name = "soundTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+
+osThreadId_t soundTaskWithDynamicNoisesHandle;
+const osThreadAttr_t soundTaskWithDynamicNoises_attributes = {
+  .name = "soundTaskWithDynamicNoises",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
 };
 
 osThreadId_t sonicTaskHandle;
@@ -113,10 +120,14 @@ uint8_t btnPress=0;
 uint32_t btnPressTime=0;
 
 //uint32_t LIGHT_THRESHOLD = 100;
-uint32_t LIGHT_SAMP = 30;
+uint32_t LIGHT_SAMP = 40;
 
 //uint32_t AMP_THRESHOLD = 80;
-uint32_t SOUND_SAMP = 50;
+uint32_t SOUND_SAMP = 100;
+//Dynamic noises
+float noise_floor = 40.0;
+const float alpha = 0.05; // Learning rate (0.01 = slow, 0.1 = fast)
+const float sensitivity_ratio = 1.5; // Trigger with noise * sen_ratio
 
 //ultrasonic
 uint32_t inputCaptureVal1 = 0;
@@ -133,10 +144,18 @@ void UARTTask(void *argument)
 {
 	  while(1)
 	  {
-		  sprintf(mes, "{\"dist\": %d, \"light\": %d, \"sound\": %d}\r\n", distVal, lightVal, soundVal);
+		  int currentSound = 0;
+
+		  taskENTER_CRITICAL();
+		  currentSound = soundVal;
+		  soundVal = 0;
+		  taskEXIT_CRITICAL();
+
+		  sprintf(mes, "{\"dist\": %d, \"light\": %d, \"sound\": %d}\r\n", distVal, lightVal, currentSound);
 		  HAL_UART_Transmit(&huart1, mes, strlen(mes), HAL_MAX_DELAY);
 		  HAL_UART_Transmit(&huart2, mes, strlen(mes), HAL_MAX_DELAY);
-		  osDelay(100);
+
+		  osDelay(1000);
 	  }
 }
 
@@ -175,7 +194,7 @@ void lightTask(void *argument)
 		}
 
 		// rest + release Mutex
-		osDelay(20);
+		osDelay(800);
 	}
 }
 
@@ -210,13 +229,74 @@ void soundTask(void *argument)
 			        if (sample < signal_min) signal_min = sample;
 			    }
 			}
-
-			soundVal = signal_max - signal_min;
 			osMutexRelease(myAdcMutexHandle);
+			uint32_t amplitude = signal_max - signal_min;
+			// prevent overwriting the critical amplitude
+			if (amplitude > soundVal)
+			{
+				soundVal = amplitude;
+			}
 		}
 
 		// rest + release Mutex
 		osDelay(20);
+	}
+}
+
+void soundTaskWithDynamicNoises(void *argument)
+{
+	while (1)
+	{
+		uint32_t signal_max = 0;
+		uint32_t signal_min = 4095;
+		uint32_t sample = 0;
+
+		//lock myAdcMutex if available
+		if (osMutexAcquire(myAdcMutexHandle, osWaitForever) == osOK)
+		{
+			ADC_ChannelConfTypeDef sConfig = {0};
+			sConfig.Channel = ADC_CHANNEL_0;
+			sConfig.Rank = 1;
+			sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+			HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+
+			uint32_t start_time = HAL_GetTick();
+			//sampling for SOUND_SAMP
+			while ((HAL_GetTick() - start_time) < SOUND_SAMP)
+			{
+				HAL_ADC_Start(&hadc1);
+			    if (HAL_ADC_PollForConversion(&hadc1, 1) == HAL_OK)
+			    {
+			    	sample = HAL_ADC_GetValue(&hadc1);
+			        HAL_ADC_Stop(&hadc1);
+
+			        if (sample > signal_max) signal_max = sample;
+			        if (sample < signal_min) signal_min = sample;
+			    }
+			}
+
+			osMutexRelease(myAdcMutexHandle);
+
+			uint32_t amplitude = signal_max - signal_min;
+			if (amplitude > (noise_floor * sensitivity_ratio))
+			{
+				// Update the critical value for UART
+			    taskENTER_CRITICAL();
+			    if (amplitude > soundVal)
+			    {
+			    	soundVal = amplitude;
+			    }
+			    taskEXIT_CRITICAL();
+			}
+			else
+			{
+				// Update the "Noise Floor"
+			    noise_floor = (alpha * amplitude) + ((1.0 - alpha) * noise_floor);
+			}
+		}
+
+		// rest + release Mutex
+		osDelay(10);
 	}
 }
 
@@ -247,7 +327,7 @@ void sonicTask(void *argument)
 	    // set counter to 0 at the moment ECHO goes HIGH
 	    __HAL_TIM_SET_COUNTER(&htim2, 0);
 
-	    // End of response
+	    // wait for the end of response
 	    while (HAL_GPIO_ReadPin(ECHO_PIN_GPIO_Port, ECHO_PIN_Pin) == GPIO_PIN_SET);
 
 	    // time passed
@@ -257,7 +337,7 @@ void sonicTask(void *argument)
 	    // Distance = (Time * Speed) / 2 (because sound goes there and back)
 	    distVal = (difference * 0.0343) / 2;
 
-		osDelay(80);
+		osDelay(500);
 	}
 }
 
@@ -331,6 +411,7 @@ int main(void)
   UARTTaskHandle = osThreadNew(UARTTask, NULL, &UARTTask_attributes);
   lightTaskHandle = osThreadNew(lightTask, NULL, &lightTask_attributes);
   soundTaskHandle = osThreadNew(soundTask, NULL, &soundTask_attributes);
+//  soundTaskWithDynamicNoisesHandle = osThreadNew(soundTaskWithDynamicNoises, NULL, &soundTaskWithDynamicNoises_attributes);
   sonicTaskHandle = osThreadNew(sonicTask, NULL, &sonicTask_attributes);
 
   /* USER CODE END RTOS_THREADS */
