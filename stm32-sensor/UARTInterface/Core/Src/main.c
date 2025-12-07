@@ -123,7 +123,7 @@ uint32_t btnPressTime=0;
 uint32_t LIGHT_SAMP = 40;
 
 //uint32_t AMP_THRESHOLD = 80;
-uint32_t SOUND_SAMP = 100;
+uint32_t SOUND_SAMP = 170;
 //Dynamic noises
 float noise_floor = 40.0;
 const float alpha = 0.05; // Learning rate (0.01 = slow, 0.1 = fast)
