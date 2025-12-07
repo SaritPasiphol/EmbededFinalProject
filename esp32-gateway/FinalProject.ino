@@ -40,9 +40,9 @@ using AsyncClient = AsyncClientClass;
 AsyncClient aClient(ssl_client);
 RealtimeDatabase Database;
 
-// Timer variables for sending data every 2 seconds
+// Timer variables for sending data every 0.8 seconds
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 2000; // 2 seconds in milliseconds
+const unsigned long sendInterval = 800; // 0.8 seconds in milliseconds
 
 void setup(void) {
   pinMode(led, OUTPUT);
@@ -93,7 +93,8 @@ void loop(void) {
         if(!validateUARTInput(sensorData))
           return;
 
-        Database.set<object_t>(aClient, "/sensor", object_t(sensorData), processData, "RTDB_Send_Distance");
+        Database.set<object_t>(aClient, "/sensor/current", object_t(sensorData), processData, "RTDB_Send_Current_Sensor");
+        Database.push<object_t>(aClient, "/sensor/history", object_t(sensorData), processData, "RTDB_Push_History_Sensor");
       }
     }
   }
