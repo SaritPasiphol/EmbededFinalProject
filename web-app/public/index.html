@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sensor Dashboard</title>
     <link rel="stylesheet" href="css/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   </head>
   <body>
     <div class="container">
@@ -33,6 +35,23 @@
 
       <div class="last-update">
         Last updated: <span id="lastUpdate">Never</span>
+      </div>
+
+      <div class="charts-section">
+        <div class="chart-container">
+          <h3>Distance History (10 Hours)</h3>
+          <canvas id="distanceChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <h3>Light History (10 Hours)</h3>
+          <canvas id="lightChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <h3>Sound History (10 Hours)</h3>
+          <canvas id="soundChart"></canvas>
+        </div>
       </div>
     </div>
 
