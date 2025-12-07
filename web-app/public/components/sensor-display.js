@@ -9,11 +9,11 @@ export function updateSensorDisplay(data) {
   }
 
   if (data.light !== undefined) {
-    lightElement.textContent = `${data.light} lux`;
+    lightElement.textContent = `${data.light}`;
   }
 
   if (data.sound !== undefined) {
-    soundElement.textContent = `${data.sound} dB`;
+    soundElement.textContent = `${data.sound}`;
   }
 
   const now = new Date();

@@ -1,6 +1,6 @@
 let distanceChart, lightChart, soundChart;
 
-const MAX_DATA_POINTS = 36000;
+const MAX_DATA_POINTS = 3600;
 
 const chartConfig = {
   type: "line",
@@ -66,7 +66,7 @@ export function initCharts() {
     data: {
       datasets: [
         {
-          label: "Light (lux)",
+          label: "Light (Inverted)",
           data: [],
           borderColor: "rgb(255, 206, 86)",
           backgroundColor: "rgba(255, 206, 86, 0.1)",
@@ -81,7 +81,7 @@ export function initCharts() {
     data: {
       datasets: [
         {
-          label: "Sound (dB)",
+          label: "Sound",
           data: [],
           borderColor: "rgb(75, 192, 192)",
           backgroundColor: "rgba(75, 192, 192, 0.1)",
