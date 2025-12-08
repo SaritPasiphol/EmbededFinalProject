@@ -60,6 +60,16 @@ osMutexId_t myAdcMutexHandle;
 const osMutexAttr_t myAdcMutex_attributes = {
   .name = "myAdcMutex"
 };
+/* Definitions for myUartMutex */
+osMutexId_t myUartMutexHandle;
+const osMutexAttr_t myUartMutex_attributes = {
+  .name = "myUartMutex"
+};
+/* Definitions for myBinarySem01 */
+osSemaphoreId_t myBinarySem01Handle;
+const osSemaphoreAttr_t myBinarySem01_attributes = {
+  .name = "myBinarySem01"
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -115,6 +125,13 @@ const osThreadAttr_t UARTTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+osThreadId_t CalibrationTaskHandle;
+const osThreadAttr_t CalibrationTask_attributes = {
+  .name = "CalibrationTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 char mes[] = "{\"dist\": 10, \"light\": 20, \"sound\": 30}\r\n";
 uint8_t btnPress=0;
 uint32_t btnPressTime=0;
@@ -136,6 +153,8 @@ uint32_t difference = 0;
 uint8_t isFirstCaptured = 0;  // 0 = capturing first edge, 1 = capturing second
 uint32_t distance = 0;
 
+char calib_msg[100];
+
 int distVal = 0;
 int lightVal = 0;
 int soundVal = 0;
@@ -152,8 +171,13 @@ void UARTTask(void *argument)
 		  taskEXIT_CRITICAL();
 
 		  sprintf(mes, "{\"dist\": %d, \"light\": %d, \"sound\": %d}\r\n", distVal, lightVal, currentSound);
-		  HAL_UART_Transmit(&huart1, mes, strlen(mes), HAL_MAX_DELAY);
-		  HAL_UART_Transmit(&huart2, mes, strlen(mes), HAL_MAX_DELAY);
+		  if (osMutexAcquire(myUartMutexHandle, osWaitForever) == osOK)
+		  {
+			  HAL_UART_Transmit(&huart1, mes, strlen(mes), HAL_MAX_DELAY);
+			  HAL_UART_Transmit(&huart2, mes, strlen(mes), HAL_MAX_DELAY);
+
+			  osMutexRelease(myUartMutexHandle);
+		  }
 
 		  osDelay(1000);
 	  }
@@ -341,6 +365,64 @@ void sonicTask(void *argument)
 	}
 }
 
+volatile uint32_t last_interrupt_time = 0;
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_13)
+    {
+    	uint32_t current_time = HAL_GetTick();
+    	if ((current_time - last_interrupt_time) > 200) {
+    		last_interrupt_time = current_time;
+            osSemaphoreRelease(myBinarySem01Handle);
+    	}
+    }
+}
+
+void CalibrationTask(void *argument)
+{
+  while(1)
+  {
+	// user button pressed
+    osSemaphoreAcquire(myBinarySem01Handle, osWaitForever);
+
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+
+    uint32_t sum_dist = 0;
+    uint32_t sum_light = 0;
+    uint32_t sum_sound = 0;
+    int samples = 0;
+
+    // sample every 0.5 sec for 20 samples (total 10 sec)
+    for (int i = 0; i < 20; i++)
+    {
+    	if (distVal != 0 && lightVal != 0 && soundVal != 0) {
+            sum_dist  += distVal;
+            sum_light += lightVal;
+            sum_sound += soundVal;
+            samples++;
+    	}
+        osDelay(500);
+    }
+
+    int avg_dist  = sum_dist / samples;
+    int avg_light = sum_light / samples;
+    int avg_sound = sum_sound / samples;
+
+    sprintf(calib_msg, "{\"calibrate\": 1, \"dist\": %d, \"light\": %d, \"sound\": %d}\r\n", avg_dist, avg_light, avg_sound);
+
+    if (osMutexAcquire(myUartMutexHandle, osWaitForever) == osOK)
+    {
+        HAL_UART_Transmit(&huart1, calib_msg, strlen(calib_msg), HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, calib_msg, strlen(calib_msg), HAL_MAX_DELAY);
+
+        osMutexRelease(myUartMutexHandle);
+    }
+
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+  }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -386,9 +468,16 @@ int main(void)
   /* creation of myAdcMutex */
   myAdcMutexHandle = osMutexNew(&myAdcMutex_attributes);
 
+  /* creation of myUartMutex */
+  myUartMutexHandle = osMutexNew(&myUartMutex_attributes);
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of myBinarySem01 */
+  myBinarySem01Handle = osSemaphoreNew(1, 1, &myBinarySem01_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -413,6 +502,7 @@ int main(void)
   soundTaskHandle = osThreadNew(soundTask, NULL, &soundTask_attributes);
 //  soundTaskWithDynamicNoisesHandle = osThreadNew(soundTaskWithDynamicNoises, NULL, &soundTaskWithDynamicNoises_attributes);
   sonicTaskHandle = osThreadNew(sonicTask, NULL, &sonicTask_attributes);
+  CalibrationTaskHandle = osThreadNew(CalibrationTask, NULL, &CalibrationTask_attributes);
 
   /* USER CODE END RTOS_THREADS */
 
@@ -429,26 +519,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  uint32_t now = HAL_GetTick();
-	  GPIO_PinState btnState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13);
-	  if(btnState == GPIO_PIN_RESET && !btnPress)
-	  {
-		  btnPress = 1;
-		  btnPressTime = now;
-	  }
-	  else if(btnPress && btnState == GPIO_PIN_SET && now-btnPressTime >= 50)
-	  {
-		  sprintf(mes, "{\"dist\": %d, \"light\": %d, \"sound\": %d}\r\n", distVal, lightVal, soundVal);
-
-//		  distVal+=1;
-//		  lightVal+=10;
-//		  soundVal+=100;
-
-		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-		  HAL_UART_Transmit(&huart1, mes, strlen(mes), HAL_MAX_DELAY);
-		  HAL_UART_Transmit(&huart2, mes, strlen(mes), HAL_MAX_DELAY);
-		  btnPress = 0;
-	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -686,11 +756,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LD2_Pin|TRIG_PIN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  /*Configure GPIO pin : PC13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD2_Pin TRIG_PIN_Pin */
   GPIO_InitStruct.Pin = LD2_Pin|TRIG_PIN_Pin;
@@ -704,6 +774,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

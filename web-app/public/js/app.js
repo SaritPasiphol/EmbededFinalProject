@@ -11,6 +11,7 @@ import {
   initCharts,
   updateCharts,
   addDataPoint,
+  setNormalValues,
 } from "../components/chart-manager.js";
 
 console.log("App.js loaded");
@@ -18,7 +19,9 @@ console.log("Database:", database);
 
 const statusElement = document.getElementById("status");
 const currentRef = ref(database, "sensor/current");
-const historyRef = query(ref(database, "sensor/history"), limitToLast(36000));
+const normalRef = ref(database, "sensor/normal");
+// Limit to 3600 data points (1 hour at 1 second intervals)
+const historyRef = query(ref(database, "sensor/history"), limitToLast(3600));
 
 let historicalDataLoaded = false;
 
@@ -62,6 +65,28 @@ async function loadHistoricalData() {
 
 // Load historical data immediately
 loadHistoricalData();
+
+// Listen to normal sensor values in real-time
+console.log("Setting up normal values listener...");
+onValue(
+  normalRef,
+  (snapshot) => {
+    console.log("Normal values snapshot received");
+    const data = snapshot.val();
+    console.log("Normal values data:", data);
+
+    if (data) {
+      const { dist, light, sound } = data;
+      if (dist !== undefined && light !== undefined && sound !== undefined) {
+        console.log("Updating normal values:", { dist, light, sound });
+        setNormalValues(dist, light, sound);
+      }
+    }
+  },
+  (error) => {
+    console.error("Error loading normal values:", error);
+  }
+);
 
 // Listen to current sensor values
 console.log("Setting up current value listener...");

@@ -84,17 +84,28 @@ void loop(void) {
     // Check if valid package and if authentication is ready
     if(incomingData.length() > 0 && app.ready()) {
       sensorData = incomingData;
-      Serial.println("STM32 Data Received (UART):" + sensorData);
 
-      unsigned long currentTime = millis();
-      if(currentTime - lastSendTime >= sendInterval){
-        lastSendTime = currentTime;
+      // Check for calibrator
+      if (isCalibrateMessage(sensorData)) {
+        Serial.println("Received calibration message: " + sensorData);
+        
+        if (validateUARTInput(sensorData)) 
+          Database.set<object_t>(aClient, "/sensor/normal", object_t(sensorData), processData, "RTDB_Set_Normal");
+      }
 
-        if(!validateUARTInput(sensorData))
-          return;
+      else {
+        Serial.println("STM32 Data Received (UART):" + sensorData);
 
-        Database.set<object_t>(aClient, "/sensor/current", object_t(sensorData), processData, "RTDB_Send_Current_Sensor");
-        Database.push<object_t>(aClient, "/sensor/history", object_t(sensorData), processData, "RTDB_Push_History_Sensor");
+        unsigned long currentTime = millis();
+        if(currentTime - lastSendTime >= sendInterval){
+          lastSendTime = currentTime;
+
+          if(!validateUARTInput(sensorData))
+            return;
+
+          Database.set<object_t>(aClient, "/sensor/current", object_t(sensorData), processData, "RTDB_Send_Current_Sensor");
+          Database.push<object_t>(aClient, "/sensor/history", object_t(sensorData), processData, "RTDB_Push_History_Sensor");
+        }
       }
     }
   }
@@ -146,4 +157,25 @@ bool validateUARTInput(String &Input){
   }
 
   return true;
+}
+
+bool isCalibrateMessage(String &Input) {
+  JsonDocument doc;
+  
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(doc, Input);
+
+  // Test if parsing succeeds.
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return false;
+  }
+
+  // Check if "calibrate" exists
+  if (doc.containsKey("calibrate") && doc["calibrate"] == 1) {
+    return true;
+  }
+
+  return false;
 }
